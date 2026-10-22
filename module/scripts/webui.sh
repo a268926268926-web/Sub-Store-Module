@@ -5,13 +5,17 @@
 #   webui.sh status|start|stop|restart|toggle-autostart|log|
 #            read-env|save-env|
 #            regenerate-backend-path|update-all|update-sub-store|
-#            update-backend|update-frontend|update-http-meta [mode]
+#            update-backend|update-frontend|update-http-meta [mode]|
+#            auto-update-status|auto-update-config <base64-json>|
+#            auto-update-run-now|auto-update-log
 # 复用 sub_store.service 与各 update_*.sh, 不重复实现更新逻辑
 # ============================================================
 
 SCRIPTS_DIR=$(dirname "$0")
 . "$SCRIPTS_DIR/lib.sh"
 load_config
+. "$SCRIPTS_DIR/auto_update_lib.sh"
+auto_update_init_paths
 
 # 更新命令结束时写完成标记（退出码），供前端区分"更新真正结束"与"下载中途日志停滞"。
 # 只在 UPDATE_DONE_MARKER=1（update-* 分支）时生效；$? 须先存起来，后续测试会覆盖它。
@@ -78,43 +82,64 @@ case "$CMD" in
     }
     echo "[Info] 已保存 env 文件"
     ;;
+  auto-update-status)
+    auto_update_status_json
+    ;;
+  auto-update-config)
+    if [ -z "${2:-}" ]; then
+      auto_update_json_error "缺少 base64-json 参数"
+      exit 1
+    fi
+    auto_update_config_command "$2"
+    ;;
+  auto-update-run-now)
+    auto_update_run_now_json
+    ;;
+  auto-update-log)
+    auto_update_print_log
+    ;;
   update-all)
     # 更新输出统一写入 update.log（配合 rotate_update_log 归档，前端可只读本次更新日志）；
     # 末尾重启的操作日志（run.log）追加进 update.log，方便确认重启结果
     UPDATE_DONE_MARKER=1
     rotate_update_log
-    NO_RESTART=1 sh "$SCRIPTS_DIR/update_backend.sh"       >>"$run_path/update.log" 2>>"$run_path/update_error.log" || exit 1
-    NO_RESTART=1 sh "$SCRIPTS_DIR/update_frontend.sh"      >>"$run_path/update.log" 2>>"$run_path/update_error.log" || exit 1
-    NO_RESTART=1 sh "$SCRIPTS_DIR/update_http_meta.sh" all >>"$run_path/update.log" 2>>"$run_path/update_error.log" || exit 1
-    restart_service
+    sh "$SCRIPTS_DIR/update_all.sh" all >>"$run_path/update.log" 2>>"$run_path/update_error.log"
+    rc=$?
     tail -n 50 "$run_path/run.log" >>"$run_path/update.log" 2>/dev/null
+    exit "$rc"
     ;;
   update-sub-store)
     UPDATE_DONE_MARKER=1
     rotate_update_log
-    NO_RESTART=1 sh "$SCRIPTS_DIR/update_backend.sh"  >>"$run_path/update.log" 2>>"$run_path/update_error.log" || exit 1
-    NO_RESTART=1 sh "$SCRIPTS_DIR/update_frontend.sh" >>"$run_path/update.log" 2>>"$run_path/update_error.log" || exit 1
-    restart_service
+    sh "$SCRIPTS_DIR/update_all.sh" sub-store >>"$run_path/update.log" 2>>"$run_path/update_error.log"
+    rc=$?
     tail -n 50 "$run_path/run.log" >>"$run_path/update.log" 2>/dev/null
+    exit "$rc"
     ;;
   update-backend)
     UPDATE_DONE_MARKER=1
     rotate_update_log
     sh "$SCRIPTS_DIR/update_backend.sh" >>"$run_path/update.log" 2>>"$run_path/update_error.log"
+    rc=$?
     # 更新脚本内部可能重启服务，把重启操作日志（run.log）追加进更新日志
     tail -n 50 "$run_path/run.log" >>"$run_path/update.log" 2>/dev/null
+    exit "$rc"
     ;;
   update-frontend)
     UPDATE_DONE_MARKER=1
     rotate_update_log
     sh "$SCRIPTS_DIR/update_frontend.sh" >>"$run_path/update.log" 2>>"$run_path/update_error.log"
+    rc=$?
     tail -n 50 "$run_path/run.log" >>"$run_path/update.log" 2>/dev/null
+    exit "$rc"
     ;;
   update-http-meta)
     UPDATE_DONE_MARKER=1
     rotate_update_log
     sh "$SCRIPTS_DIR/update_http_meta.sh" "$MODE" >>"$run_path/update.log" 2>>"$run_path/update_error.log"
+    rc=$?
     tail -n 50 "$run_path/run.log" >>"$run_path/update.log" 2>/dev/null
+    exit "$rc"
     ;;
   log-size)
     # 输出 run.log 当前字节数，供前端轮询判断服务操作是否完成（日志停止增长即结束）
@@ -144,7 +169,7 @@ case "$CMD" in
     fi
     ;;
   *)
-    echo "用法: $0 {status|start|stop|restart|toggle-autostart|log|log-reset|log-size|update-log|update-log-size|update-status|read-env|save-env|regenerate-backend-path|update-all|update-sub-store|update-backend|update-frontend|update-http-meta [all|js|kernel|kernel-alpha]}"
+    echo "用法: $0 {status|start|stop|restart|toggle-autostart|log|log-reset|log-size|update-log|update-log-size|update-status|read-env|save-env|regenerate-backend-path|update-all|update-sub-store|update-backend|update-frontend|update-http-meta [all|js|kernel|kernel-alpha]|auto-update-status|auto-update-config <base64-json>|auto-update-run-now|auto-update-log}"
     exit 1
     ;;
 esac

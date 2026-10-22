@@ -22,6 +22,7 @@
 #   NODE_DIST_URL    直接指定 node tar.xz 下载地址 (覆盖 NODE_REPO/NODE_VERSION)
 #   NODE_BIN_PATH    直接指定本地 node 二进制文件 (覆盖上面所有, 本地调试用)
 #   BUILD_TYPE       构建类型: release(默认)|hotfix|prerelease|canary
+#   VERSION_CODE     覆盖 module.prop 的 versionCode (CI/浅克隆环境使用)
 #   SKIP_VERSION_CHECK  设为 1 跳过新旧版本对比 (默认对比上游最新, 过旧自动刷新)
 #   WEBUI_REPO_DIR   WebUI 源码仓库目录 (默认 ./webui submodule)
 #   WEBUI_DIST_DIR   直接指定已构建好的 WebUI dist 目录 (覆盖 WEBUI_REPO_DIR)
@@ -305,7 +306,13 @@ if [ -z "$VER_NAME" ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; th
 fi
 VER_NAME="${VER_NAME:-dev}"
 VER_NAME="${VER_NAME#v}"
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+if [ -n "${VERSION_CODE:-}" ]; then
+  case "$VERSION_CODE" in
+    ''|*[!0-9]*) die "VERSION_CODE 必须是正整数" ;;
+  esac
+  VER_CODE=$VERSION_CODE
+  VER_HASH=$(git rev-parse --verify --short HEAD 2>/dev/null || echo unknown)
+elif git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   VER_CODE=$(git rev-list HEAD --count 2>/dev/null || echo 1)
   VER_HASH=$(git rev-parse --verify --short HEAD 2>/dev/null || echo unknown)
 else
@@ -313,6 +320,7 @@ else
   VER_CODE=1
   VER_HASH="nogit"
 fi
+[ "$VER_CODE" -ge 1 ] 2>/dev/null || die "versionCode 必须是正整数"
 BUILD_TYPE="${BUILD_TYPE:-release}"
 VERSION_LINE="$VER_NAME ($VER_CODE-$VER_HASH-$BUILD_TYPE)"
 sed -i "s/^version=.*/version=$VERSION_LINE/; s/^versionCode=.*/versionCode=$VER_CODE/" "$STAGE/module.prop"

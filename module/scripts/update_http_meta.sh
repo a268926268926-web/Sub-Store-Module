@@ -14,6 +14,20 @@
 SCRIPTS_DIR=$(dirname "$0")
 . "$SCRIPTS_DIR/lib.sh"
 load_config
+. "$SCRIPTS_DIR/auto_update_lib.sh"
+auto_update_init_paths
+if ! update_lock_acquire; then
+  err "另一个更新任务正在运行"
+  exit 3
+fi
+trap update_lock_release EXIT
+if [ "${AUTO_UPDATE_DETACHED:-0}" = "1" ]; then
+  trap '' HUP
+else
+  trap 'update_lock_release; exit 129' HUP
+fi
+trap 'update_lock_release; exit 130' INT
+trap 'update_lock_release; exit 143' TERM
 
 MODE=${1:-all}
 BIN_DIR="$sub_store_path/bin"
@@ -40,9 +54,24 @@ update_js() {
     err "下载文件为空"
     return 1
   }
-  mv -f "$BIN_DIR/http-meta.bundle.js" "$BIN_DIR/http-meta.bundle.js.old" 2>/dev/null
-  mv -f "$BIN_DIR/http-meta.bundle.js.new" "$BIN_DIR/http-meta.bundle.js"
-  chmod 644 "$BIN_DIR/http-meta.bundle.js" 2>/dev/null
+  target="$BIN_DIR/http-meta.bundle.js"
+  old="$target.old"
+  had_old=0
+  rm -f "$old" 2>/dev/null
+  if [ -f "$target" ]; then
+    mv -f "$target" "$old" || {
+      rm -f "$target.new"
+      err "无法备份旧 http-meta.bundle.js"
+      return 1
+    }
+    had_old=1
+  fi
+  if ! mv -f "$target.new" "$target"; then
+    [ "$had_old" = "1" ] && mv -f "$old" "$target" 2>/dev/null
+    err "替换 http-meta.bundle.js 失败"
+    return 1
+  fi
+  chmod 644 "$target" 2>/dev/null
   info "http-meta.bundle.js 更新完成"
   updated=1
   return 0
@@ -62,9 +91,24 @@ update_tpl() {
     err "下载文件为空"
     return 1
   }
-  mv -f "$HM_DIR/tpl.yaml" "$HM_DIR/tpl.yaml.old" 2>/dev/null
-  mv -f "$HM_DIR/tpl.yaml.new" "$HM_DIR/tpl.yaml"
-  chmod 644 "$HM_DIR/tpl.yaml" 2>/dev/null
+  target="$HM_DIR/tpl.yaml"
+  old="$target.old"
+  had_old=0
+  rm -f "$old" 2>/dev/null
+  if [ -f "$target" ]; then
+    mv -f "$target" "$old" || {
+      rm -f "$target.new"
+      err "无法备份旧 tpl.yaml"
+      return 1
+    }
+    had_old=1
+  fi
+  if ! mv -f "$target.new" "$target"; then
+    [ "$had_old" = "1" ] && mv -f "$old" "$target" 2>/dev/null
+    err "替换 tpl.yaml 失败"
+    return 1
+  fi
+  chmod 644 "$target" 2>/dev/null
   info "tpl.yaml 更新完成"
   updated=1
   return 0
@@ -166,10 +210,30 @@ update_kernel() {  # $1=stable|alpha
   fi
   rm -f "$HM_DIR/http-meta.gz"
   chmod 755 "$KERNEL_FILE.new"
-  mv -f "$KERNEL_FILE" "$KERNEL_FILE.old" 2>/dev/null
-  mv -f "$KERNEL_FILE.new" "$KERNEL_FILE"
+  had_old=0
+  rm -f "$KERNEL_FILE.old" 2>/dev/null
+  if [ -f "$KERNEL_FILE" ]; then
+    mv -f "$KERNEL_FILE" "$KERNEL_FILE.old" || {
+      rm -f "$KERNEL_FILE.new"
+      err "无法备份旧 mihomo 内核"
+      return 1
+    }
+    had_old=1
+  fi
+  if ! mv -f "$KERNEL_FILE.new" "$KERNEL_FILE"; then
+    [ "$had_old" = "1" ] && mv -f "$KERNEL_FILE.old" "$KERNEL_FILE" 2>/dev/null
+    err "替换 mihomo 内核失败"
+    return 1
+  fi
   chmod 755 "$KERNEL_FILE" 2>/dev/null
-  echo "$tag" > "$KERNEL_VER_FILE"
+  cp -f "$KERNEL_VER_FILE" "$KERNEL_VER_FILE.old" 2>/dev/null || rm -f "$KERNEL_VER_FILE.old" 2>/dev/null
+  if ! echo "$tag" > "$KERNEL_VER_FILE"; then
+    rm -f "$KERNEL_FILE"
+    [ "$had_old" = "1" ] && mv -f "$KERNEL_FILE.old" "$KERNEL_FILE" 2>/dev/null
+    [ -f "$KERNEL_VER_FILE.old" ] && mv -f "$KERNEL_VER_FILE.old" "$KERNEL_VER_FILE" 2>/dev/null
+    err "写入内核版本文件失败"
+    return 1
+  fi
   info "mihomo 内核已更新: $tag"
   updated=1
   return 0

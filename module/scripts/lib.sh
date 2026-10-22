@@ -34,7 +34,11 @@ rotate_http_meta_log() {
 # 优先使用用户配置 (/data/local/sub_store/scripts/), 否则使用模块内置默认配置
 # sub_store.config 仅含模块特有配置; sub_store.env 为服务环境变量 (Docker 版一致)
 load_config() {
-  CONFIG_DIR=/data/local/sub_store/scripts
+  if [ -n "${SUB_STORE_TEST_ROOT:-}" ]; then
+    CONFIG_DIR="$SUB_STORE_TEST_ROOT/scripts"
+  else
+    CONFIG_DIR=/data/local/sub_store/scripts
+  fi
   if [ -d "$CONFIG_DIR" ]; then
     CONFIG_FILE="$CONFIG_DIR/sub_store.config"
     ENV_FILE="$CONFIG_DIR/sub_store.env"
@@ -52,6 +56,18 @@ load_config() {
   ENV_SOURCE="$ENV_FILE"
   [ -f "$ENV_SOURCE" ] || ENV_SOURCE="$SCRIPTS_DIR/sub_store.env"
   [ -f "$ENV_SOURCE" ] && . "$ENV_SOURCE" 2>/dev/null
+
+  # Tests use a disposable root so they never touch /data/local/sub_store.
+  if [ -n "${SUB_STORE_TEST_ROOT:-}" ]; then
+    sub_store_path="$SUB_STORE_TEST_ROOT"
+    run_path="$sub_store_path/run"
+    pid_file="$run_path/${bin_name}.pid"
+    http_meta_pid_file="$run_path/http-meta.pid"
+    CONFIG_DIR="$sub_store_path/scripts"
+    CONFIG_FILE="$CONFIG_DIR/sub_store.config"
+    ENV_FILE="$CONFIG_DIR/sub_store.env"
+    ENV_SOURCE="$ENV_FILE"
+  fi
 }
 
 # 配置是否在启动后被修改 (返回 0=已修改未重启, 1=正常/不适用)
@@ -365,4 +381,82 @@ restart_service() {
 }
 stop_service() {
   sh "$SCRIPTS_DIR/sub_store.service" stop >>"$run_path/run.log" 2>>"$run_path/run_error.log"
+}
+
+# ---------- PID 锁 (mkdir 原子创建, 不依赖 flock) ----------
+pid_start_time() {
+  local pid=$1
+  awk '{print $22}' "/proc/$pid/stat" 2>/dev/null
+}
+
+pid_lock_owner_alive() {
+  local lock_dir=$1
+  local lock_pid=""
+  local lock_start=""
+  local current_start=""
+  [ -d "$lock_dir" ] || return 1
+  if [ -f "$lock_dir/owner" ]; then
+    read -r lock_pid lock_start <"$lock_dir/owner" 2>/dev/null || true
+  fi
+  case "$lock_pid" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  kill -0 "$lock_pid" 2>/dev/null || return 1
+  current_start=$(pid_start_time "$lock_pid")
+  [ -n "$current_start" ] || return 1
+  [ -z "$lock_start" ] || [ "$lock_start" = "$current_start" ]
+}
+
+pid_lock_acquire() {  # $1=lock dir; 0=acquired, 2=busy/invalid
+  local lock_dir=$1
+  local lock_start=""
+  local try_count=0
+  local stale_dir=""
+  lock_start=$(pid_start_time "$$")
+  [ -n "$lock_start" ] || lock_start=unknown
+  mkdir -p "${lock_dir%/*}" 2>/dev/null
+  while [ "$try_count" -lt 3 ]; do
+    if mkdir "$lock_dir" 2>/dev/null; then
+      if printf '%s %s\n' "$$" "$lock_start" >"$lock_dir/owner" 2>/dev/null; then
+        return 0
+      fi
+      rm -rf "$lock_dir" 2>/dev/null
+      return 2
+    fi
+    if pid_lock_owner_alive "$lock_dir"; then
+      return 2
+    fi
+    # A newly created lock can briefly have no owner file. Give it a moment.
+    if [ ! -s "$lock_dir/owner" ]; then
+      sleep 0.1
+      if pid_lock_owner_alive "$lock_dir"; then
+        return 2
+      fi
+    fi
+    stale_dir="${lock_dir}.stale.$$"
+    rm -rf "$stale_dir" 2>/dev/null
+    if mv "$lock_dir" "$stale_dir" 2>/dev/null; then
+      rm -rf "$stale_dir" 2>/dev/null
+    fi
+    try_count=$((try_count + 1))
+  done
+  return 2
+}
+
+pid_lock_release() {  # only the owner may remove the lock
+  local lock_dir=$1
+  local lock_pid=""
+  local lock_start=""
+  local current_start=""
+  read -r lock_pid lock_start <"$lock_dir/owner" 2>/dev/null || true
+  if [ "$lock_pid" = "$$" ]; then
+    current_start=$(pid_start_time "$$")
+    [ -z "$lock_start" ] || [ "$lock_start" = "$current_start" ] || return 1
+    rm -rf "$lock_dir" 2>/dev/null
+  fi
+  return 0
+}
+
+pid_lock_active() {
+  pid_lock_owner_alive "$1"
 }

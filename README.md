@@ -22,8 +22,9 @@
 | 开机自启 | `service.sh` 在系统启动完成后自动拉起 Sub-Store 后端 / 前端 / HTTP-META |
 | 低权限运行 | node 默认以 `shell` (uid 2000) 较低权限运行（含 `inet` 组）；<br> 可选以 `root` 身份运行（会有安全警告）；<br> 数据目录位于 `/data/local/sub_store`（shell 域原生可访问，不暴露 root） |
 | 执行按钮 | 管理器内点击 **[执行]**，按音量键选择操作（音量下键 移动 / 音量上键 确认） |
-| WebUI | Vue 3 + Vite + [miuix-vue](https://github.com/YuKongA/miuix-vue) 构建的 WebUI <br> KSU/AP 管理器可直接使用管理器内置 WebUI 功能， <br> Magisk 用户可尝试：[KsuWebUIStandalone](https://github.com/KOWX712/KsuWebUIStandalone/releases) 或 [WebUI X](https://github.com/MMRLApp/WebUI-X-Portable/releases) |
+| WebUI | Vue 3 + Vite 构建的 Material 3 Expressive WebUI <br> 小屏使用全宽底部导航，宽屏切换为侧边导航栏 <br> KSU/AP 管理器可直接使用管理器内置 WebUI 功能， <br> Magisk 用户可尝试：[KsuWebUIStandalone](https://github.com/KOWX712/KsuWebUIStandalone/releases) 或 [WebUI X](https://github.com/MMRLApp/WebUI-X-Portable/releases) |
 | 全部更新 | Sub-Store 前后端 + http-meta 一次搞定 |
+| 自动更新 | 默认关闭；可按每天 / 每周 / 间隔天数定时执行稳定渠道“全部更新”，配置与结果持久保存 |
 | 拆分更新 | 后端 / 前端 / http-meta 可单独更新 |
 | http-meta 子菜单 | 全部更新 / 仅 js+tpl.yaml / 仅 mihomo 内核(稳定版) / 仅 mihomo 内核(预览版) |
 | 开关联动 | 禁用模块自动停止服务，启用自动重启 |
@@ -126,6 +127,32 @@ http-meta 子菜单:
 | `run_http_meta_with_inet` | http-meta 是否授予 `inet` 组（仅 `shell` 用户生效）：`false`(默认) 不授予；`true` 允许使用 Android 系统 DNS |
 | `run_http_meta_bypass_vpn` | http-meta 是否绕过 Android VPN（仅 `shell` 用户生效）：`true`(默认) 绕过 VPN；`false` 跟随系统 VPN 路由 |
 | `allow_nosafe_download` | 是否允许不安全的下载方式 `true`/`false`(默认) : 用于更新时在所有下载方式不可用时降级使用 root 环境提供的 `busybox wget` 下载 (可能存在安全风险) |
+
+## 自动更新
+
+WebUI 中启用自动更新后，模块会在后台持续调度，关闭 WebUI 不会终止任务。默认配置为**关闭**，
+首次启用后才写入 `/data/local/sub_store/scripts/auto_update.conf`。
+
+- 频率：`daily`（每天）、`weekly`（每周）或 `interval_days`（间隔天数）
+- 执行时间：设备本地时区的 `hour` / `minute`
+- 每周任务：`weekday` 使用 `0`=周日、`1`=周一，依此类推至 `6`=周六
+- 更新范围：固定为稳定渠道“全部更新”（Sub-Store 前后端 + http-meta 稳定版内核），不会自动选择 http-meta Alpha
+- 错过执行时间：设备休眠、关机或服务停止后恢复时最多补跑一次，成功后计算下一次时间，避免循环补跑
+
+自动更新、WebUI 手动更新和 TUI 手动更新共用 `/data/local/sub_store/scripts/update.lock`。
+更新失败会恢复更新前的组件快照；最近状态保存在 `/data/local/sub_store/scripts/auto-update.state`，
+日志位于 `/data/local/sub_store/run/` 的 `auto-update.log` / `auto-update_error.log`，并按大小保留有限归档。
+
+WebUI 后端脚本提供以下单行 JSON 接口：
+
+```text
+webui.sh auto-update-status
+webui.sh auto-update-config <base64-json>
+webui.sh auto-update-run-now
+```
+
+`auto-update-config` 接受的 JSON 字段为 `enabled`、`schedule`、`hour`、`minute`、
+`intervalDays`、`weekday`（可省略字段会沿用当前配置）。
 
 ## 手动操作
 

@@ -7,6 +7,11 @@
 MODDIR=${0%/*}
 SCRIPTS_DIR="$MODDIR/scripts"
 
+# 停止自动更新调度器
+if [ -f "$SCRIPTS_DIR/auto_update_daemon.sh" ]; then
+  sh "$SCRIPTS_DIR/auto_update_daemon.sh" stop >/dev/null 2>&1
+fi
+
 # 停止 inotifyd 监控
 for pid in $(pidof inotifyd 2>/dev/null); do
   grep -q sub_store.inotify /proc/$pid/cmdline 2>/dev/null && kill "$pid" 2>/dev/null

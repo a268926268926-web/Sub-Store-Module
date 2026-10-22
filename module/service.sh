@@ -14,6 +14,9 @@ SCRIPTS_DIR="$MODDIR/scripts"
     sleep 3
   done
   sh "$SCRIPTS_DIR/start.sh"
+  mkdir -p /data/local/sub_store/run 2>/dev/null
+  sh "$SCRIPTS_DIR/auto_update_daemon.sh" start \
+    >>"/data/local/sub_store/run/auto-update-daemon.log" 2>&1
 ) &
 
 # 监控模块目录: 创建 disable 文件(禁用模块)时停止服务, 删除时重启

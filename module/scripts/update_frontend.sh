@@ -7,6 +7,20 @@
 SCRIPTS_DIR=$(dirname "$0")
 . "$SCRIPTS_DIR/lib.sh"
 load_config
+. "$SCRIPTS_DIR/auto_update_lib.sh"
+auto_update_init_paths
+if ! update_lock_acquire; then
+  err "另一个更新任务正在运行"
+  exit 3
+fi
+trap update_lock_release EXIT
+if [ "${AUTO_UPDATE_DETACHED:-0}" = "1" ]; then
+  trap '' HUP
+else
+  trap 'update_lock_release; exit 129' HUP
+fi
+trap 'update_lock_release; exit 130' INT
+trap 'update_lock_release; exit 143' TERM
 
 BIN_DIR="$sub_store_path/bin"
 URL="https://github.com/sub-store-org/Sub-Store-Front-End/releases/latest/download/dist.zip"
@@ -49,16 +63,51 @@ if [ "$current" = "$new" ]; then
 fi
 
 # 原子替换
-rm -rf "$BIN_DIR/frontend.old"
-mv "$BIN_DIR/frontend" "$BIN_DIR/frontend.old" 2>/dev/null
-mv "$TMP_DIR/dist" "$BIN_DIR/frontend"
+TARGET="$BIN_DIR/frontend"
+OLD="$BIN_DIR/frontend.old"
+VERSION_FILE="$BIN_DIR/frontend_version"
+VERSION_OLD="$VERSION_FILE.old"
+had_old=0
+rm -rf "$OLD"
+if [ -d "$TARGET" ]; then
+  mv "$TARGET" "$OLD" || {
+    rm -rf "$TMP_DIR"
+    err "无法备份旧前端目录"
+    exit 1
+  }
+  had_old=1
+fi
+if ! mv "$TMP_DIR/dist" "$TARGET"; then
+  [ "$had_old" = "1" ] && mv "$OLD" "$TARGET" 2>/dev/null
+  rm -rf "$TMP_DIR"
+  err "替换前端目录失败"
+  exit 1
+fi
 rm -rf "$TMP_DIR"
 # 低权限用户需要可读 (unzip 可能受 umask 影响)
-chmod -R a+rX "$BIN_DIR/frontend" 2>/dev/null
-echo "$new" > "$BIN_DIR/frontend_version"
+chmod -R a+rX "$TARGET" 2>/dev/null
+cp -f "$VERSION_FILE" "$VERSION_OLD" 2>/dev/null || rm -f "$VERSION_OLD" 2>/dev/null
+if ! echo "$new" > "$VERSION_FILE"; then
+  rm -rf "$TARGET"
+  [ "$had_old" = "1" ] && mv "$OLD" "$TARGET" 2>/dev/null
+  [ -f "$VERSION_OLD" ] && mv -f "$VERSION_OLD" "$VERSION_FILE" 2>/dev/null
+  err "写入前端版本文件失败"
+  exit 1
+fi
 info "前端已更新到 $new"
 
 if [ "$NO_RESTART" != "1" ]; then
   info "重启服务 ..."
-  restart_service
+  if ! restart_service; then
+    err "重启失败，正在恢复旧前端"
+    rm -rf "$TARGET"
+    [ "$had_old" = "1" ] && mv "$OLD" "$TARGET" 2>/dev/null
+    if [ -f "$VERSION_OLD" ]; then
+      mv -f "$VERSION_OLD" "$VERSION_FILE" 2>/dev/null
+    else
+      rm -f "$VERSION_FILE" 2>/dev/null
+    fi
+    restart_service || true
+    exit 1
+  fi
 fi

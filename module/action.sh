@@ -313,8 +313,8 @@ update_menu() {
       "更新 http-meta ..." \
       "返回上一级"
     case "$MENU_SEL" in
-      1) run_op "全部更新" update sh -c "NO_RESTART=1 sh $SCRIPTS_DIR/update_backend.sh || exit 1; NO_RESTART=1 sh $SCRIPTS_DIR/update_frontend.sh || exit 1; NO_RESTART=1 sh $SCRIPTS_DIR/update_http_meta.sh all || exit 1; sh $SCRIPTS_DIR/sub_store.service restart; :" || exit 1 ;;
-      2) run_op "更新 Sub-Store 前后端" update sh -c "NO_RESTART=1 sh $SCRIPTS_DIR/update_backend.sh || exit 1; NO_RESTART=1 sh $SCRIPTS_DIR/update_frontend.sh || exit 1; sh $SCRIPTS_DIR/sub_store.service restart; :" || exit 1 ;;
+      1) run_op "全部更新" update sh "$SCRIPTS_DIR/update_all.sh" all || exit 1 ;;
+      2) run_op "更新 Sub-Store 前后端" update sh "$SCRIPTS_DIR/update_all.sh" sub-store || exit 1 ;;
       3) run_op "仅更新 Sub-Store 后端" update sh "$SCRIPTS_DIR/update_backend.sh" || exit 1 ;;
       4) run_op "仅更新 Sub-Store 前端" update sh "$SCRIPTS_DIR/update_frontend.sh" || exit 1 ;;
       5) http_meta_menu ;;
