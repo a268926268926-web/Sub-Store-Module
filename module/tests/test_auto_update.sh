@@ -76,6 +76,23 @@ json_check "$configured" '
 ' "saved config status contract"
 grep -q '^enabled=true$' "$AUTO_CONFIG_FILE" || fail "enabled was not persisted"
 grep -q '^schedule=weekly$' "$AUTO_CONFIG_FILE" || fail "schedule was not persisted"
+
+# The WebUI now emits interval_days for every user-selected period, including
+# one day. Verify the full supported range survives the shell/JSON boundary.
+for interval in 1 3 7 30 365; do
+  interval_payload=$(printf '%s' "{\"enabled\":true,\"schedule\":\"interval_days\",\"hour\":4,\"minute\":30,\"intervalDays\":$interval}" | base64 | tr -d '\n')
+  interval_output=$(sh "$SCRIPTS_DIR/webui.sh" auto-update-config "$interval_payload") \
+    || fail "intervalDays=$interval was rejected"
+  json_check "$interval_output" "
+    const x = JSON.parse(process.argv[1]);
+    if (x.success !== true || x.schedule !== \"interval_days\") process.exit(1);
+    if (x.intervalDays !== $interval) process.exit(1);
+  " "intervalDays=$interval status contract"
+  grep -q '^schedule=interval_days$' "$AUTO_CONFIG_FILE" \
+    || fail "interval schedule was not persisted for $interval days"
+  grep -q "^interval_days=$interval$" "$AUTO_CONFIG_FILE" \
+    || fail "intervalDays=$interval was not persisted"
+done
 auto_update_daemon_stop
 echo "PASS config validation and atomic persistence"
 

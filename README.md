@@ -24,7 +24,7 @@
 | 执行按钮 | 管理器内点击 **[执行]**，按音量键选择操作（音量下键 移动 / 音量上键 确认） |
 | WebUI | Vue 3 + Vite 构建的 Material 3 Expressive WebUI <br> 小屏使用全宽底部导航，宽屏切换为侧边导航栏 <br> KSU/AP 管理器可直接使用管理器内置 WebUI 功能， <br> Magisk 用户可尝试：[KsuWebUIStandalone](https://github.com/KOWX712/KsuWebUIStandalone/releases) 或 [WebUI X](https://github.com/MMRLApp/WebUI-X-Portable/releases) |
 | 全部更新 | Sub-Store 前后端 + http-meta 一次搞定 |
-| 自动更新 | 默认关闭；可按每天 / 每周 / 间隔天数定时执行稳定渠道“全部更新”，配置与结果持久保存 |
+| 自动更新 | 默认关闭；可设置 `1–365` 天周期和本地执行时间，定时执行稳定渠道“全部更新”，配置与结果持久保存 |
 | 拆分更新 | 后端 / 前端 / http-meta 可单独更新 |
 | http-meta 子菜单 | 全部更新 / 仅 js+tpl.yaml / 仅 mihomo 内核(稳定版) / 仅 mihomo 内核(预览版) |
 | 开关联动 | 禁用模块自动停止服务，启用自动重启 |
@@ -133,9 +133,9 @@ http-meta 子菜单:
 WebUI 中启用自动更新后，模块会在后台持续调度，关闭 WebUI 不会终止任务。默认配置为**关闭**，
 首次启用后才写入 `/data/local/sub_store/scripts/auto_update.conf`。
 
-- 频率：`daily`（每天）、`weekly`（每周）或 `interval_days`（间隔天数）
+- 频率：WebUI 使用 `interval_days`，支持 `1–365` 天；`1` 天显示为“每天”
 - 执行时间：设备本地时区的 `hour` / `minute`
-- 每周任务：`weekday` 使用 `0`=周日、`1`=周一，依此类推至 `6`=周六
+- 兼容旧配置：后端仍接受 `daily` 和 `weekly`，其中 `weekday` 使用 `0`=周日、`1`=周一，依此类推至 `6`=周六
 - 更新范围：固定为稳定渠道“全部更新”（Sub-Store 前后端 + http-meta 稳定版内核），不会自动选择 http-meta Alpha
 - 错过执行时间：设备休眠、关机或服务停止后恢复时最多补跑一次，成功后计算下一次时间，避免循环补跑
 
