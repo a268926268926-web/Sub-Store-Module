@@ -328,7 +328,8 @@ sed -i "s/^version=.*/version=$VERSION_LINE/; s/^versionCode=.*/versionCode=$VER
 info "版本: $VERSION_LINE (versionCode: $VER_CODE)"
 
 # ---------- 6. updateJson (各架构分开, 由 workflow 发布到 gh-pages 分支) ----------
-UPDATE_JSON_BASE="${UPDATE_JSON_BASE:-https://raw.githubusercontent.com/Delusions6515/Sub-Store-Module/gh-pages}"
+DEFAULT_UPDATE_REPO="${GITHUB_REPOSITORY:-Delusions6515/Sub-Store-Module}"
+UPDATE_JSON_BASE="${UPDATE_JSON_BASE:-https://raw.githubusercontent.com/${DEFAULT_UPDATE_REPO}/gh-pages}"
 sed -i "/^updateJson=/d" "$STAGE/module.prop"
 echo "updateJson=$UPDATE_JSON_BASE/update-${TARGET_ABI}.json" >> "$STAGE/module.prop"
 info "updateJson: $UPDATE_JSON_BASE/update-${TARGET_ABI}.json"
