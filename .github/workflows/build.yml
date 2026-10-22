@@ -164,6 +164,7 @@ jobs:
           BUILD_TYPE: ${{ needs.metadata.outputs.build-type }}
           WEBUI_DIST_DIR: ${{ github.workspace }}/webui-dist
           NODE_VERSION: ${{ inputs.node-version }}
+          UPDATE_JSON_BASE: https://raw.githubusercontent.com/${{ github.repository }}/gh-pages
         run: |
           ./build.sh "${{ needs.metadata.outputs.version }}"
           ls -lh build/*.zip
@@ -264,8 +265,8 @@ jobs:
           {
             "version": "$VER",
             "versionCode": $CODE,
-            "zipUrl": "https://github.com/Delusions6515/Sub-Store-Module/releases/download/$TAG/$ZIP",
-            "changelog": "https://raw.githubusercontent.com/Delusions6515/Sub-Store-Module/gh-pages/CHANGELOG.md"
+            "zipUrl": "https://github.com/${{ github.repository }}/releases/download/$TAG/$ZIP",
+            "changelog": "https://raw.githubusercontent.com/${{ github.repository }}/gh-pages/CHANGELOG.md"
           }
           JSON
           done

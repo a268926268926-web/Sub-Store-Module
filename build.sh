@@ -26,6 +26,7 @@
 #   SKIP_VERSION_CHECK  设为 1 跳过新旧版本对比 (默认对比上游最新, 过旧自动刷新)
 #   WEBUI_REPO_DIR   WebUI 源码仓库目录 (默认 ./webui submodule)
 #   WEBUI_DIST_DIR   直接指定已构建好的 WebUI dist 目录 (覆盖 WEBUI_REPO_DIR)
+#   UPDATE_JSON_BASE 模块更新 JSON 的 raw 根地址 (默认上游 gh-pages; fork CI 会覆盖)
 #   OUT_DIR          输出目录 (默认 ./build)
 #
 # 组件目录 $REPO_DIR/bin/ (结构同 sub_store/bin, 含版本文件):
