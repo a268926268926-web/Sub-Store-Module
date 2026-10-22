@@ -27,6 +27,7 @@
 #   WEBUI_REPO_DIR   WebUI 源码仓库目录 (默认 ./webui submodule)
 #   WEBUI_DIST_DIR   直接指定已构建好的 WebUI dist 目录 (覆盖 WEBUI_REPO_DIR)
 #   UPDATE_JSON_BASE 模块更新 JSON 的 raw 根地址 (默认上游 gh-pages; fork CI 会覆盖)
+#   SKIP_UPDATE_JSON 设为 1 时不写入 updateJson (本地候选包可关闭模块更新检查)
 #   OUT_DIR          输出目录 (默认 ./build)
 #
 # 组件目录 $REPO_DIR/bin/ (结构同 sub_store/bin, 含版本文件):
@@ -329,10 +330,14 @@ info "版本: $VERSION_LINE (versionCode: $VER_CODE)"
 
 # ---------- 6. updateJson (各架构分开, 由 workflow 发布到 gh-pages 分支) ----------
 DEFAULT_UPDATE_REPO="${GITHUB_REPOSITORY:-Delusions6515/Sub-Store-Module}"
-UPDATE_JSON_BASE="${UPDATE_JSON_BASE:-https://raw.githubusercontent.com/${DEFAULT_UPDATE_REPO}/gh-pages}"
 sed -i "/^updateJson=/d" "$STAGE/module.prop"
-echo "updateJson=$UPDATE_JSON_BASE/update-${TARGET_ABI}.json" >> "$STAGE/module.prop"
-info "updateJson: $UPDATE_JSON_BASE/update-${TARGET_ABI}.json"
+if [ "${SKIP_UPDATE_JSON:-0}" = "1" ]; then
+  info "updateJson: 已跳过 (SKIP_UPDATE_JSON=1)"
+else
+  UPDATE_JSON_BASE="${UPDATE_JSON_BASE:-https://raw.githubusercontent.com/${DEFAULT_UPDATE_REPO}/gh-pages}"
+  echo "updateJson=$UPDATE_JSON_BASE/update-${TARGET_ABI}.json" >> "$STAGE/module.prop"
+  info "updateJson: $UPDATE_JSON_BASE/update-${TARGET_ABI}.json"
+fi
 
 # ---------- 7. 权限 ----------
 find "$STAGE" -type f \( -name '*.sh' -o -name 'sub_store.service' -o -name 'sub_store.inotify' -o -name 'update-binary' \) -exec chmod 755 {} +
