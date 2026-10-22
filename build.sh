@@ -28,6 +28,7 @@
 #   WEBUI_DIST_DIR   直接指定已构建好的 WebUI dist 目录 (覆盖 WEBUI_REPO_DIR)
 #   UPDATE_JSON_BASE 模块更新 JSON 的 raw 根地址 (默认上游 gh-pages; fork CI 会覆盖)
 #   SKIP_UPDATE_JSON 设为 1 时不写入 updateJson (本地候选包可关闭模块更新检查)
+#   MODULE_INSTALLER_PATH 本地 module_installer.sh 路径 (离线/网络失败时使用)
 #   OUT_DIR          输出目录 (默认 ./build)
 #
 # 组件目录 $REPO_DIR/bin/ (结构同 sub_store/bin, 含版本文件):
@@ -51,7 +52,8 @@ warn() { echo "[!] $1"; }
 die()  { echo "[Error] $1"; exit 1; }
 
 download() {  # $1=url $2=输出文件
-  curl -fsSL --connect-timeout 10 --max-time 600 --retry 3 --retry-delay 2 --retry-max-time 60 "$1" -o "$2"
+  curl -fsSL --connect-timeout 10 --max-time 600 --retry 4 --retry-all-errors \
+    --retry-delay 2 --retry-max-time 120 "$1" -o "$2"
 }
 
 # ---------- ABI 映射 ----------
@@ -290,8 +292,15 @@ build_webui
 
 # ---------- 4. META-INF (官方 module_installer.sh), 失败则跳过 ----------
 mkdir -p "$STAGE/META-INF/com/google/android"
-if download "https://raw.githubusercontent.com/topjohnwu/Magisk/master/scripts/module_installer.sh" \
+installer_ready=0
+if [ -n "${MODULE_INSTALLER_PATH:-}" ]; then
+  cp -f "$MODULE_INSTALLER_PATH" "$STAGE/META-INF/com/google/android/update-binary" \
+    && installer_ready=1
+elif download "https://raw.githubusercontent.com/topjohnwu/Magisk/master/scripts/module_installer.sh" \
   "$STAGE/META-INF/com/google/android/update-binary"; then
+  installer_ready=1
+fi
+if [ "$installer_ready" = "1" ]; then
   printf '#MAGISK\n' > "$STAGE/META-INF/com/google/android/updater-script"
   info "已获取官方 module_installer.sh (支持恢复模式刷入)"
 else
