@@ -180,7 +180,8 @@ su -c "sh /data/adb/modules/sub_store/scripts/update_http_meta.sh all"    # 更�
 - workflow 会初始化根目录 `webui/` 的 [WebUI submodule](https://github.com/Delusions6515/Sub-Store-Module-WebUI)，构建主仓库锁定的提交，产物自动写入模块包内 `webroot/`
 - Dependabot 按 `daily` 频率（北京时间 09:00）检查 WebUI submodule 更新，向 `dev` 提 PR；合并后更新锁定的提交
 - 所有组件在线获取，无需本地参考文件
-  - node 二进制来自 [Delusions6515/node-android-build](https://github.com/Delusions6515/node-android-build) 的 release
+  - node 二进制优先来自 [a268926268926-web/node-android-build](https://github.com/a268926268926-web/node-android-build) 的 release
+  - 自建 Node release 尚未就绪时，自动回退到 [Delusions6515/node-android-build](https://github.com/Delusions6515/node-android-build)
 
 ### 本地构建
 
@@ -210,9 +211,10 @@ WEBUI_DIST_DIR=/path/to/webui/dist ./build.sh
 
 - 组件来源：
   - **node**：始终使用官方最新 LTS 版本——从 `nodejs.org` 解析当前 LTS（如 `24.19.0`），
-    再到 `NODE_REPO`（默认 [Delusions6515/node-android-build](https://github.com/Delusions6515/node-android-build)）的
+    再到 `NODE_REPO`（默认 [a268926268926-web/node-android-build](https://github.com/a268926268926-web/node-android-build)）的
     `node-android-<arch>-<major>` release 取对应版本 asset（该仓库 release 按 `大版本`+`<arch>` 归档、
     全部 4 架构、历史版本保留）；最新 LTS 尚未构建时回退该大版本已有最高版本并告警；
+    自建仓库暂无资产时回退到 `NODE_REPO_FALLBACK`（默认 `Delusions6515/node-android-build`）；
     可用 `NODE_DIST_URL` / `NODE_BIN_PATH` 覆盖
   - **后端**：[sub-store-org/Sub-Store](https://github.com/sub-store-org/Sub-Store) latest release
   - **前端**：[sub-store-org/Sub-Store-Front-End](https://github.com/sub-store-org/Sub-Store-Front-End) latest release
